@@ -45,7 +45,20 @@ class ArcadeManager:
         self.session.add(borne)
         self.session.commit()
         print("Borne ajoutée ✓")
+    def delete_borne(self):
+        bornes_list = self.session.scalars(select(Borne)).all()
+        choices = [borne.name for borne in bornes_list]  # liste de strings
 
+        answer = inquirer.prompt([  # liste de questions
+            inquirer.List("borne", message="Quelle borne voulez-vous supprimer ?", choices=choices)
+        ])
+
+        # On récupère l'objet existant en base
+        borne = self.session.scalars(select(Borne).where(Borne.name == answer["borne"])).first()
+        self.session.delete(borne)  # delete, pas remove
+        self.session.commit()
+        print(f"{borne.name} supprimée ✓")
+        
     def display_all(self):
         bornes = self.session.execute(
             select(Borne, Games_types.name, Status.name)
@@ -55,10 +68,12 @@ class ArcadeManager:
 
         print('======== Toutes les bornes ========')
         for borne, type_name, status_name in bornes:
+            total_price = borne.price * borne.nb_games
             print(
                 f"Nom : {borne.name} || {type_name} || "
                 f"{borne.price}€ par partie || Statut : {status_name} || "
                 f"Parties jouées : {borne.nb_games}\n"
+                f"Chiffre d'affaire : {total_price}"
             )
 
     def display_dispo(self):
@@ -126,6 +141,18 @@ class ArcadeManager:
         self.session.commit()
         print(f"{borne.name} mise en maintenance ✓")
 
+    def out_maintenance(self):
+        bornes = self.session.scalars(select(Borne)).all()
+        choices = [borne.name for borne in bornes]
+        answer = inquirer.prompt([
+            inquirer.List('borne', message= "Quelle borne sortire de maintenance ? ", choices= choices)
+        ])
+        borne = self.session.scalars(select(Borne).where(Borne.name == answer["borne"])).first()
+        status = self.session.scalars(select(Status).where(Status.name == "Disponible")).first()
+        borne.status_id = status.id
+        self.session.commit()
+        print(f'{borne.name} retirée de la maintenance')
+        
     def statistics(self):
         total_bornes = self.session.scalar(select(func.count()).select_from(Borne))
         dispo = self.session.scalar(
@@ -141,7 +168,6 @@ class ArcadeManager:
         borne_populaire = self.session.scalars(
             select(Borne).order_by(Borne.nb_games.desc())
         ).first()
-
         print("\n===== STATISTIQUES =====")
         print(f"Nombre total de bornes    : {total_bornes}")
         print(f"Bornes disponibles        : {dispo}")
@@ -149,7 +175,8 @@ class ArcadeManager:
         print(f"Bornes en maintenance     : {maintenance}")
         print(f"Parties jouées au total   : {total_games}")
         if borne_populaire:
-            print(f"Borne la plus utilisée    : {borne_populaire.name} ({borne_populaire.nb_games} parties)")
+            print(f"Borne la plus utilisée    : {borne_populaire.name} ({borne_populaire.nb_games * borne_populaire.price} € de chiffre d'affaire)")
+
 
 
 def menu():
@@ -157,11 +184,13 @@ def menu():
 
     actions = {
         "Ajouter une borne": manager.add_borne,
+        "Supprimer une borne": manager.delete_borne,
         "Afficher toutes les bornes": manager.display_all,
         "Afficher toutes les bornes disponibles": manager.display_dispo,
         "Lancer une partie": manager.start_game,
         "Terminer une partie": manager.end_game,
         "Mettre une borne en maintenance": manager.maintenance,
+        "Sortir un borne de la maintenance": manager.out_maintenance,
         "Afficher les statistiques": manager.statistics,
         "Quitter": exit,
     }
