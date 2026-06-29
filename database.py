@@ -1,7 +1,5 @@
 from __future__ import annotations
-
 from pathlib import Path
-
 from sqlalchemy import ForeignKey, Integer, String, create_engine, func, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
